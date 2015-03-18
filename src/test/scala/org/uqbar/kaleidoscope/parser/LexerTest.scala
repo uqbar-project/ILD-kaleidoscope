@@ -3,7 +3,7 @@ package org.uqbar.kaleidoscope.parser
 import org.scalatest.FreeSpec
 import org.scalatest.Matchers
 
-class LexerTest extends FreeSpec with Matchers with Lexer {
+class PreParserProcessorTest extends FreeSpec with Matchers with PreParserProcessor {
 
   "SExpression Parser" - {
 
@@ -11,7 +11,7 @@ class LexerTest extends FreeSpec with Matchers with Lexer {
 
       "simple expression" in {
 
-        tokenize("""def fib(x)
+        changeContextBoundaries("""def fib(x)
   if x < 3 then
     1
   else

@@ -3,7 +3,7 @@ package org.uqbar.kaleidoscope.parser
 import scala.util.parsing.combinator._
 import com.sun.org.apache.xerces.internal.impl.xpath.regex.RegexParser
 
-object KaleidoscopeParser extends RegexParsers
+object KaleidoscopeParser extends KaleidoscopeParser
 trait KaleidoscopeParser extends RegexParsers {
 
   sealed trait KaleiNode
@@ -11,7 +11,7 @@ trait KaleidoscopeParser extends RegexParsers {
   sealed trait PrimitiveType extends KaleiNode
   sealed trait Operation extends KaleiNode
 
-  case class KaleidoscopeProgram(list: List[KaleiNode]) extends Statement
+  case class KaleidoscopeProgram(list: List[KaleiNode]) extends KaleiNode
   case class AlgebraicOperation(operation: String) extends Operation
   case class BooleanOperation(operation: String) extends Operation
   case class IntNode(i: Int) extends PrimitiveType
@@ -21,7 +21,9 @@ trait KaleidoscopeParser extends RegexParsers {
   case class ArgumentNode(argument: String) extends Statement
   case class ExpressionNode(le: PrimitiveType, op: Operation, re: PrimitiveType) extends Statement
   case class While(e: ExpressionNode, b: List[KaleiNode]) extends Statement
-
+  case class IfBlock(bool: ExpressionNode, smts: List[KaleiNode]) extends Statement
+   case class IfElseBlock(bool: ExpressionNode, smts: List[KaleiNode], elsesmts: List[KaleiNode]) extends Statement
+  
   val blockStart = "{"
   val blockEnd = "}"
   val programStart = "module{"
@@ -31,6 +33,7 @@ trait KaleidoscopeParser extends RegexParsers {
   protected lazy val strIdentifier = "[a-zA-Z]+".r
   protected lazy val comp = "=="
   protected lazy val different = "!="
+  protected lazy val minor = "<"
   
   
   protected lazy val primitiveType: Parser[PrimitiveType] = int | identifierNode
@@ -42,17 +45,18 @@ trait KaleidoscopeParser extends RegexParsers {
   protected lazy val arguments = "(" ~> repsep(argument, ',') <~ ")" ^^ { case argument => ArgumentsNode(argument) }
 
   protected lazy val operation = regex("""[+-/\*]""".r) ^^ AlgebraicOperation
-  protected lazy val booleanOp = (comp | different) ^^ BooleanOperation
+  protected lazy val booleanOp = (minor | comp | different) ^^ BooleanOperation
   
   protected lazy val program = "module{" ~> define.* <~ "}" ^^ KaleidoscopeProgram
   protected lazy val booleanExpression = primitiveType ~ booleanOp ~ primitiveType ^^ { case le ~ op ~ re => ExpressionNode(le, op, re) }
   protected lazy val expression = primitiveType ~ operation ~ primitiveType ^^ { case le ~ op ~ re => ExpressionNode(le, op, re) }
   protected lazy val whileStatement: Parser[While] =
     ("while" ~> "(" ~> booleanExpression <~ ")") ~ "{" ~ statement.* <~ "}" ^^ { case e ~ "{" ~ b => While(e, b) }
-  protected lazy val ifStatement =
-    "if" ~> booleanExpression ~ ("then" ~> statement.*) ~ ("else" ~> statement) |
-      "if" ~> booleanExpression ~ ("then" ~> statement.*)
-  protected lazy val statement: Parser[KaleiNode] = int | operation | whileStatement
+  protected lazy val ifStatement = ifelseblock | ifblock 
+  protected lazy val ifblock =  ifClosure <~ "}"  ^^ {case bool ~ stmts => IfBlock(bool, stmts)}
+  protected lazy val ifelseblock = ifClosure ~ ("}" ~ "else" ~ "{" ~> statement.* <~ "}") ^^ {case bool ~ stmts ~ elsestmts  => IfElseBlock(bool, stmts, elsestmts)}
+  protected lazy val ifClosure =  ("if" ~ "(" ~> booleanExpression <~ ")") ~ ("then" ~ "{" ~> statement.*)
+  protected lazy val statement: Parser[KaleiNode] = int | operation | whileStatement | ifStatement
 
   
   def apply(input: String) = parseAll(program, input) match {
